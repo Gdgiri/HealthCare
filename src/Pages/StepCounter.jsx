@@ -1,82 +1,73 @@
 import React, { useState, useEffect, useRef } from "react";
 
-function StepCounter() {
+function StepCounterImproved() {
   const [steps, setSteps] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+
   const accBuffer = useRef([]);
+  const gyroBuffer = useRef([]);
   const lastStepTime = useRef(0);
 
-  // Parameters to tweak for sensitivity
-  const bufferSize = 5;
-  const stepGap = 400; // Increased minimum ms between steps
-  const stepPeakMinDiff = 0.5; // minimum difference from avg to count as step
-  const stepPeakMaxDiff = 5; // lowered max difference to ignore big shakes
+  const bufferSize = 10;
+  const stepGap = 400;
+  const accThreshold = 1.0;
+  const gyroThreshold = 0.5;
 
-  // Stable function reference for event listener
-  const handleMotionRef = useRef(null);
+  const handleMotion = (event) => {
+    const acc = event.accelerationIncludingGravity;
+    const gyro = event.rotationRate;
+    if (!acc || !gyro) return;
 
-  if (!handleMotionRef.current) {
-    handleMotionRef.current = (event) => {
-      const acc = event.accelerationIncludingGravity;
-      if (!acc) return;
+    // Total acceleration magnitude
+    const accMag = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
+    accBuffer.current.push(accMag);
+    if (accBuffer.current.length > bufferSize) accBuffer.current.shift();
 
-      const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
+    // Gyroscope magnitude (rotational velocity)
+    const gyroMag = Math.sqrt(
+      gyro.alpha ** 2 + gyro.beta ** 2 + gyro.gamma ** 2
+    );
+    gyroBuffer.current.push(gyroMag);
+    if (gyroBuffer.current.length > bufferSize) gyroBuffer.current.shift();
 
-      // Update buffer for smoothing
-      accBuffer.current.push(totalAcc);
-      if (accBuffer.current.length > bufferSize) {
-        accBuffer.current.shift();
-      }
+    // Calculate average values
+    const avgAcc =
+      accBuffer.current.reduce((a, b) => a + b, 0) / accBuffer.current.length;
+    const avgGyro =
+      gyroBuffer.current.reduce((a, b) => a + b, 0) / gyroBuffer.current.length;
 
-      // Calculate average acceleration from buffer
-      const avgAcc =
-        accBuffer.current.reduce((sum, val) => sum + val, 0) /
-        accBuffer.current.length;
+    const now = Date.now();
 
-      const diff = totalAcc - avgAcc;
-      const now = Date.now();
-
-      // Reject too fast steps & big shakes
-      if (
-        diff > stepPeakMinDiff &&
-        diff < stepPeakMaxDiff &&
-        now - lastStepTime.current > stepGap
-      ) {
-        setSteps((prev) => prev + 1);
-        lastStepTime.current = now;
-      }
-    };
-  }
+    // Detect step if acceleration spikes above threshold AND rotation above threshold (typical walking pattern)
+    if (
+      avgAcc > accThreshold &&
+      avgGyro > gyroThreshold &&
+      now - lastStepTime.current > stepGap
+    ) {
+      setSteps((prev) => prev + 1);
+      lastStepTime.current = now;
+    }
+  };
 
   const startTracking = async () => {
     if (typeof DeviceMotionEvent.requestPermission === "function") {
       const permission = await DeviceMotionEvent.requestPermission();
       if (permission !== "granted") {
-        alert("Motion permission denied");
+        alert("Permission denied");
         return;
       }
     }
 
-    window.addEventListener("devicemotion", handleMotionRef.current);
+    window.addEventListener("devicemotion", handleMotion);
     setIsRunning(true);
   };
 
   const stopTracking = () => {
-    window.removeEventListener("devicemotion", handleMotionRef.current);
+    window.removeEventListener("devicemotion", handleMotion);
     setIsRunning(false);
     accBuffer.current = [];
+    gyroBuffer.current = [];
   };
-
-  useEffect(() => {
-    if (!isRunning) return;
-
-    const interval = setInterval(() => {
-      console.log("Sending steps to backend:", steps);
-      // TODO: send steps to backend here
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [isRunning, steps]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-white">
@@ -107,4 +98,4 @@ function StepCounter() {
   );
 }
 
-export default StepCounter;
+export default StepCounterImproved;

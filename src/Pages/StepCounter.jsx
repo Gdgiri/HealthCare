@@ -9,11 +9,8 @@ function StepCounter() {
   // Parameters to tweak for sensitivity
   const bufferSize = 5;
   const stepGap = 300; // minimum ms between steps
-  const stepPeakThreshold = 1.2; // multiplier above average acceleration to count as step
-
-  // Thresholds to ignore shakes (too high) and noise (too low)
-  const MIN_STEP_ACCEL = 9; // minimum acceleration to consider (gravity baseline)
-  const MAX_STEP_ACCEL = 15; // max acceleration to consider (ignore strong shakes)
+  const stepPeakMinDiff = 0.5; // minimum difference from avg to count as step
+  const stepPeakMaxDiff = 7; // maximum difference to ignore shakes
 
   // Stable function reference for event listener
   const handleMotionRef = useRef(null);
@@ -24,11 +21,6 @@ function StepCounter() {
       if (!acc) return;
 
       const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
-
-      // Ignore too low or too high acceleration (noise or shake)
-      if (totalAcc < MIN_STEP_ACCEL || totalAcc > MAX_STEP_ACCEL) {
-        return;
-      }
 
       // Update buffer for smoothing
       accBuffer.current.push(totalAcc);
@@ -41,11 +33,13 @@ function StepCounter() {
         accBuffer.current.reduce((sum, val) => sum + val, 0) /
         accBuffer.current.length;
 
+      const diff = totalAcc - avgAcc;
       const now = Date.now();
 
-      // Detect step: current acceleration noticeably higher than average and enough time passed
+      // Count step only if difference is moderate and enough time has passed
       if (
-        totalAcc > avgAcc * stepPeakThreshold &&
+        diff > stepPeakMinDiff &&
+        diff < stepPeakMaxDiff &&
         now - lastStepTime.current > stepGap
       ) {
         setSteps((prev) => prev + 1);

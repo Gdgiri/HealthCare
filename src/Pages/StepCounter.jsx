@@ -10,39 +10,40 @@ function StepCounter() {
   const bufferSize = 10;
   const stepGap = 400; // minimum ms between steps
 
-  // Filter thresholds (tweak these)
-  const minStepAccelDiff = 1.0;  // minimum accel difference from avg to count step
-  const maxStepAccelDiff = 3.0;  // max accel diff to exclude big shakes
+  const minStepAccelDiff = 1.0;
+  const maxStepAccelDiff = 3.0;
 
-  // Helper to get average of array
   const average = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
 
-  const handleMotion = (event) => {
-    const acc = event.accelerationIncludingGravity;
-    if (!acc) return;
+  // Use useRef to keep a stable function reference
+  const handleMotionRef = useRef();
 
-    const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
+  if (!handleMotionRef.current) {
+    handleMotionRef.current = (event) => {
+      const acc = event.accelerationIncludingGravity;
+      if (!acc) return;
 
-    accBuffer.current.push(totalAcc);
-    if (accBuffer.current.length > bufferSize) {
-      accBuffer.current.shift();
-    }
+      const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
 
-    const avgAcc = average(accBuffer.current);
+      accBuffer.current.push(totalAcc);
+      if (accBuffer.current.length > bufferSize) {
+        accBuffer.current.shift();
+      }
 
-    const diff = totalAcc - avgAcc;
-    const now = Date.now();
+      const avgAcc = average(accBuffer.current);
+      const diff = totalAcc - avgAcc;
+      const now = Date.now();
 
-    // Count step if diff is moderate and time since last step is enough
-    if (
-      diff > minStepAccelDiff &&
-      diff < maxStepAccelDiff &&
-      now - lastStepTime.current > stepGap
-    ) {
-      setSteps((prev) => prev + 1);
-      lastStepTime.current = now;
-    }
-  };
+      if (
+        diff > minStepAccelDiff &&
+        diff < maxStepAccelDiff &&
+        now - lastStepTime.current > stepGap
+      ) {
+        setSteps((prev) => prev + 1);
+        lastStepTime.current = now;
+      }
+    };
+  }
 
   const startTracking = async () => {
     if (typeof DeviceMotionEvent.requestPermission === "function") {
@@ -53,12 +54,12 @@ function StepCounter() {
       }
     }
 
-    window.addEventListener("devicemotion", handleMotion);
+    window.addEventListener("devicemotion", handleMotionRef.current);
     setIsRunning(true);
   };
 
   const stopTracking = () => {
-    window.removeEventListener("devicemotion", handleMotion);
+    window.removeEventListener("devicemotion", handleMotionRef.current);
     setIsRunning(false);
     accBuffer.current = [];
   };
@@ -66,8 +67,12 @@ function StepCounter() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-white">
       <div className="bg-white shadow-lg rounded-xl p-8 max-w-sm w-full text-center">
-        <h2 className="text-2xl font-bold text-blue-600 mb-4">🚶 Step Counter</h2>
-        <p className="text-4xl font-semibold mb-6 text-gray-700">{steps} Steps</p>
+        <h2 className="text-2xl font-bold text-blue-600 mb-4">
+          🚶 Step Counter
+        </h2>
+        <p className="text-4xl font-semibold mb-6 text-gray-700">
+          {steps} Steps
+        </p>
         {!isRunning ? (
           <button
             onClick={startTracking}

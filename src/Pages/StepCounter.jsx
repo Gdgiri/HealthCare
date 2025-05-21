@@ -8,9 +8,9 @@ function StepCounter() {
 
   // Parameters to tweak for sensitivity
   const bufferSize = 5;
-  const stepGap = 300; // minimum ms between steps
+  const stepGap = 400; // Increased minimum ms between steps
   const stepPeakMinDiff = 0.5; // minimum difference from avg to count as step
-  const stepPeakMaxDiff = 7; // maximum difference to ignore shakes
+  const stepPeakMaxDiff = 5; // lowered max difference to ignore big shakes
 
   // Stable function reference for event listener
   const handleMotionRef = useRef(null);
@@ -36,7 +36,7 @@ function StepCounter() {
       const diff = totalAcc - avgAcc;
       const now = Date.now();
 
-      // Count step only if difference is moderate and enough time has passed
+      // Reject too fast steps & big shakes
       if (
         diff > stepPeakMinDiff &&
         diff < stepPeakMaxDiff &&

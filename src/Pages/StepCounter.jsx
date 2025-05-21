@@ -6,13 +6,17 @@ function StepCounter() {
   const accBuffer = useRef([]);
   const lastStepTime = useRef(0);
 
-  // Store a stable handleMotion function reference
-  const handleMotionRef = useRef(null);
-
   // Parameters to tweak for sensitivity
   const bufferSize = 5;
   const stepGap = 300; // minimum ms between steps
-  const stepPeakThreshold = 1.2;
+  const stepPeakThreshold = 1.2; // multiplier above average acceleration to count as step
+
+  // Thresholds to ignore shakes (too high) and noise (too low)
+  const MIN_STEP_ACCEL = 9; // minimum acceleration to consider (gravity baseline)
+  const MAX_STEP_ACCEL = 15; // max acceleration to consider (ignore strong shakes)
+
+  // Stable function reference for event listener
+  const handleMotionRef = useRef(null);
 
   if (!handleMotionRef.current) {
     handleMotionRef.current = (event) => {
@@ -21,17 +25,25 @@ function StepCounter() {
 
       const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
 
+      // Ignore too low or too high acceleration (noise or shake)
+      if (totalAcc < MIN_STEP_ACCEL || totalAcc > MAX_STEP_ACCEL) {
+        return;
+      }
+
+      // Update buffer for smoothing
       accBuffer.current.push(totalAcc);
       if (accBuffer.current.length > bufferSize) {
         accBuffer.current.shift();
       }
 
+      // Calculate average acceleration from buffer
       const avgAcc =
         accBuffer.current.reduce((sum, val) => sum + val, 0) /
         accBuffer.current.length;
 
       const now = Date.now();
 
+      // Detect step: current acceleration noticeably higher than average and enough time passed
       if (
         totalAcc > avgAcc * stepPeakThreshold &&
         now - lastStepTime.current > stepGap
@@ -75,8 +87,12 @@ function StepCounter() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-white">
       <div className="bg-white shadow-lg rounded-xl p-8 max-w-sm w-full text-center">
-        <h2 className="text-2xl font-bold text-blue-600 mb-4">🚶 Step Counter</h2>
-        <p className="text-4xl font-semibold mb-6 text-gray-700">{steps} Steps</p>
+        <h2 className="text-2xl font-bold text-blue-600 mb-4">
+          🚶 Step Counter
+        </h2>
+        <p className="text-4xl font-semibold mb-6 text-gray-700">
+          {steps} Steps
+        </p>
         {!isRunning ? (
           <button
             onClick={startTracking}

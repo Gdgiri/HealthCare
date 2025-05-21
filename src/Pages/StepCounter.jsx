@@ -6,39 +6,41 @@ function StepCounter() {
   const accBuffer = useRef([]);
   const lastStepTime = useRef(0);
 
+  // Store a stable handleMotion function reference
+  const handleMotionRef = useRef(null);
+
   // Parameters to tweak for sensitivity
   const bufferSize = 5;
   const stepGap = 300; // minimum ms between steps
-  const stepPeakThreshold = 1.2; // how much above average acceleration counts as a step
+  const stepPeakThreshold = 1.2;
 
-  const handleMotion = (event) => {
-    const acc = event.accelerationIncludingGravity;
-    if (!acc) return;
+  if (!handleMotionRef.current) {
+    handleMotionRef.current = (event) => {
+      const acc = event.accelerationIncludingGravity;
+      if (!acc) return;
 
-    const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
+      const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
 
-    // Update buffer
-    accBuffer.current.push(totalAcc);
-    if (accBuffer.current.length > bufferSize) {
-      accBuffer.current.shift(); // keep last bufferSize samples
-    }
+      accBuffer.current.push(totalAcc);
+      if (accBuffer.current.length > bufferSize) {
+        accBuffer.current.shift();
+      }
 
-    // Calculate average acceleration in buffer (smoothed baseline)
-    const avgAcc =
-      accBuffer.current.reduce((sum, val) => sum + val, 0) /
-      accBuffer.current.length;
+      const avgAcc =
+        accBuffer.current.reduce((sum, val) => sum + val, 0) /
+        accBuffer.current.length;
 
-    const now = Date.now();
+      const now = Date.now();
 
-    // Detect step when current acceleration significantly exceeds average
-    if (
-      totalAcc > avgAcc * stepPeakThreshold &&
-      now - lastStepTime.current > stepGap
-    ) {
-      setSteps((prev) => prev + 1);
-      lastStepTime.current = now;
-    }
-  };
+      if (
+        totalAcc > avgAcc * stepPeakThreshold &&
+        now - lastStepTime.current > stepGap
+      ) {
+        setSteps((prev) => prev + 1);
+        lastStepTime.current = now;
+      }
+    };
+  }
 
   const startTracking = async () => {
     if (typeof DeviceMotionEvent.requestPermission === "function") {
@@ -49,12 +51,12 @@ function StepCounter() {
       }
     }
 
-    window.addEventListener("devicemotion", handleMotion);
+    window.addEventListener("devicemotion", handleMotionRef.current);
     setIsRunning(true);
   };
 
   const stopTracking = () => {
-    window.removeEventListener("devicemotion", handleMotion);
+    window.removeEventListener("devicemotion", handleMotionRef.current);
     setIsRunning(false);
     accBuffer.current = [];
   };
@@ -73,12 +75,8 @@ function StepCounter() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-white">
       <div className="bg-white shadow-lg rounded-xl p-8 max-w-sm w-full text-center">
-        <h2 className="text-2xl font-bold text-blue-600 mb-4">
-          🚶 Step Counter
-        </h2>
-        <p className="text-4xl font-semibold mb-6 text-gray-700">
-          {steps} Steps
-        </p>
+        <h2 className="text-2xl font-bold text-blue-600 mb-4">🚶 Step Counter</h2>
+        <p className="text-4xl font-semibold mb-6 text-gray-700">{steps} Steps</p>
         {!isRunning ? (
           <button
             onClick={startTracking}

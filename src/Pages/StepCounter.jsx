@@ -3,26 +3,41 @@ import React, { useState, useEffect, useRef } from "react";
 function StepCounter() {
   const [steps, setSteps] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  const lastAcceleration = useRef(0);
-  const stepThreshold = 12;
-  const lastStepTime = useRef(Date.now());
+  const accBuffer = useRef([]);
+  const lastStepTime = useRef(0);
+
+  // Parameters to tweak for sensitivity
+  const bufferSize = 5;
+  const stepGap = 300; // minimum ms between steps
+  const stepPeakThreshold = 1.2; // how much above average acceleration counts as a step
 
   const handleMotion = (event) => {
     const acc = event.accelerationIncludingGravity;
     if (!acc) return;
 
     const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
+
+    // Update buffer
+    accBuffer.current.push(totalAcc);
+    if (accBuffer.current.length > bufferSize) {
+      accBuffer.current.shift(); // keep last bufferSize samples
+    }
+
+    // Calculate average acceleration in buffer (smoothed baseline)
+    const avgAcc =
+      accBuffer.current.reduce((sum, val) => sum + val, 0) /
+      accBuffer.current.length;
+
     const now = Date.now();
 
+    // Detect step when current acceleration significantly exceeds average
     if (
-      Math.abs(totalAcc - lastAcceleration.current) > stepThreshold &&
-      now - lastStepTime.current > 300
+      totalAcc > avgAcc * stepPeakThreshold &&
+      now - lastStepTime.current > stepGap
     ) {
       setSteps((prev) => prev + 1);
       lastStepTime.current = now;
     }
-
-    lastAcceleration.current = totalAcc;
   };
 
   const startTracking = async () => {
@@ -41,6 +56,7 @@ function StepCounter() {
   const stopTracking = () => {
     window.removeEventListener("devicemotion", handleMotion);
     setIsRunning(false);
+    accBuffer.current = [];
   };
 
   useEffect(() => {

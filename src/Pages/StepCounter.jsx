@@ -1,47 +1,42 @@
 import React, { useState, useEffect, useRef } from "react";
 
-function StepCounterImproved() {
+function StepCounter() {
   const [steps, setSteps] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
 
   const accBuffer = useRef([]);
-  const gyroBuffer = useRef([]);
   const lastStepTime = useRef(0);
 
   const bufferSize = 10;
-  const stepGap = 400;
-  const accThreshold = 1.0;
-  const gyroThreshold = 0.5;
+  const stepGap = 400; // minimum ms between steps
+
+  // Filter thresholds (tweak these)
+  const minStepAccelDiff = 1.0;  // minimum accel difference from avg to count step
+  const maxStepAccelDiff = 3.0;  // max accel diff to exclude big shakes
+
+  // Helper to get average of array
+  const average = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
 
   const handleMotion = (event) => {
     const acc = event.accelerationIncludingGravity;
-    const gyro = event.rotationRate;
-    if (!acc || !gyro) return;
+    if (!acc) return;
 
-    // Total acceleration magnitude
-    const accMag = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
-    accBuffer.current.push(accMag);
-    if (accBuffer.current.length > bufferSize) accBuffer.current.shift();
+    const totalAcc = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
 
-    // Gyroscope magnitude (rotational velocity)
-    const gyroMag = Math.sqrt(
-      gyro.alpha ** 2 + gyro.beta ** 2 + gyro.gamma ** 2
-    );
-    gyroBuffer.current.push(gyroMag);
-    if (gyroBuffer.current.length > bufferSize) gyroBuffer.current.shift();
+    accBuffer.current.push(totalAcc);
+    if (accBuffer.current.length > bufferSize) {
+      accBuffer.current.shift();
+    }
 
-    // Calculate average values
-    const avgAcc =
-      accBuffer.current.reduce((a, b) => a + b, 0) / accBuffer.current.length;
-    const avgGyro =
-      gyroBuffer.current.reduce((a, b) => a + b, 0) / gyroBuffer.current.length;
+    const avgAcc = average(accBuffer.current);
 
+    const diff = totalAcc - avgAcc;
     const now = Date.now();
 
-    // Detect step if acceleration spikes above threshold AND rotation above threshold (typical walking pattern)
+    // Count step if diff is moderate and time since last step is enough
     if (
-      avgAcc > accThreshold &&
-      avgGyro > gyroThreshold &&
+      diff > minStepAccelDiff &&
+      diff < maxStepAccelDiff &&
       now - lastStepTime.current > stepGap
     ) {
       setSteps((prev) => prev + 1);
@@ -66,18 +61,13 @@ function StepCounterImproved() {
     window.removeEventListener("devicemotion", handleMotion);
     setIsRunning(false);
     accBuffer.current = [];
-    gyroBuffer.current = [];
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-white">
       <div className="bg-white shadow-lg rounded-xl p-8 max-w-sm w-full text-center">
-        <h2 className="text-2xl font-bold text-blue-600 mb-4">
-          🚶 Step Counter
-        </h2>
-        <p className="text-4xl font-semibold mb-6 text-gray-700">
-          {steps} Steps
-        </p>
+        <h2 className="text-2xl font-bold text-blue-600 mb-4">🚶 Step Counter</h2>
+        <p className="text-4xl font-semibold mb-6 text-gray-700">{steps} Steps</p>
         {!isRunning ? (
           <button
             onClick={startTracking}
@@ -98,4 +88,4 @@ function StepCounterImproved() {
   );
 }
 
-export default StepCounterImproved;
+export default StepCounter;
